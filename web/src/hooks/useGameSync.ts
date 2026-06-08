@@ -7,8 +7,10 @@ import * as Ably from 'ably';
 const ABLY_KEY = 'nQ2DYw.oEeHoA:HYWuHtZeHYE7KHB_tMYtbRdQWN0zsUrB_Mmzdn7pWrc';
 
 interface GameMove {
-  index: number;
-  player: 'X' | 'O';
+  type: 'move' | 'settings';
+  index?: number;
+  player?: 'X' | 'O';
+  bet?: string;
 }
 
 export function useGameSync(roomId: string | null) {
@@ -28,16 +30,12 @@ export function useGameSync(roomId: string | null) {
       console.log('Ably: Connected to server');
     });
 
-    ably.connection.on('failed', (err) => {
-      console.error('Ably: Connection failed:', err);
-    });
-
     const channel = ably.channels.get(`tic-tac-toe-${roomId}`);
     channelRef.current = channel;
 
-    // Subscribe to messages
-    channel.subscribe('move', (message) => {
-      console.log('Ably: Received move:', message.data);
+    // Subscribe to all game events
+    channel.subscribe('game-event', (message) => {
+      console.log('Ably: Received event:', message.data);
       setMessages((prev) => [...prev, message.data]);
     });
 
@@ -49,10 +47,15 @@ export function useGameSync(roomId: string | null) {
 
   const sendMove = (index: number, player: 'X' | 'O') => {
     if (channelRef.current) {
-      console.log('Ably: Sending move:', { index, player });
-      channelRef.current.publish('move', { index, player });
+      channelRef.current.publish('game-event', { type: 'move', index, player });
     }
   };
 
-  return { messages, sendMove };
+  const sendSettings = (bet: string) => {
+    if (channelRef.current) {
+      channelRef.current.publish('game-event', { type: 'settings', bet });
+    }
+  };
+
+  return { messages, sendMove, sendSettings };
 }

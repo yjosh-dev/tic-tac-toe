@@ -25,7 +25,24 @@ export default function TicTacToe({ publicKey }: { publicKey: string }) {
   const [txHash, setTxHash] = useState('');
   const [error, setError] = useState('');
 
-  const { messages, sendMove } = useGameSync(joinedRoom);
+  const { messages, sendMove, sendSettings } = useGameSync(joinedRoom);
+
+  // Synchronize game events from Ably
+  useEffect(() => {
+    if (messages.length > 0) {
+      const lastEvent = messages[messages.length - 1];
+      
+      if (lastEvent.type === 'move' && lastEvent.index !== undefined && lastEvent.player) {
+        applyMove(lastEvent.index, lastEvent.player);
+      } else if (lastEvent.type === 'settings' && lastEvent.bet) {
+        // If I'm the joiner (Player O), I must accept the creator's bet amount
+        if (mySymbol === 'O') {
+          setBetAmount(lastEvent.bet);
+        }
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages]);
 
   function calculateWinner(squares: (string | null)[]) {
     const lines = [
@@ -66,6 +83,7 @@ export default function TicTacToe({ publicKey }: { publicKey: string }) {
     setJoinedRoom(id);
     setMySymbol('X');
     setGameState('BETTING');
+    // We'll send the settings once the bet is selected
   };
 
   const handleJoinGame = () => {
@@ -77,6 +95,11 @@ export default function TicTacToe({ publicKey }: { publicKey: string }) {
   };
 
   const handlePlaceBet = async () => {
+    // If I'm Player X, I broadcast my chosen bet to the opponent
+    if (mySymbol === 'X') {
+      sendSettings(betAmount);
+    }
+
     setGameState('WAITING_FOR_BET');
     setError('');
     try {
@@ -108,24 +131,9 @@ export default function TicTacToe({ publicKey }: { publicKey: string }) {
     sendMove(i, mySymbol!);
   };
 
-  useEffect(() => {
-    if (messages.length > 0) {
-      const lastMove = messages[messages.length - 1];
-      applyMove(lastMove.index, lastMove.player);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages]);
-
-  const CasinoChip = ({ color, amount }: { color: string, amount: string }) => (
-    <div className={`relative flex h-16 w-16 items-center justify-center rounded-full border-4 border-dashed border-white shadow-xl ${color}`}>
-      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-[10px] font-black text-black">
-        {amount}
-      </div>
-    </div>
-  );
-
   const handleClaim = async () => {
     setError('');
+    const originalState = gameState;
     setGameState('WAITING_FOR_BET'); // Reuse loading state
     try {
       const res = await fetch('/api/payout', {
@@ -143,145 +151,211 @@ export default function TicTacToe({ publicKey }: { publicKey: string }) {
       window.location.reload();
     } catch (e: any) {
       setError(e.message || 'Payout failed');
-      setGameState('WON');
+      setGameState(originalState);
     }
   };
 
+  const CasinoChip = ({ color, amount, active }: { color: string, amount: string, active?: boolean }) => (
+    <div className={`relative flex h-16 w-16 items-center justify-center rounded-full border-4 border-dashed ${active ? 'border-yellow-400 scale-110' : 'border-white/50'} shadow-xl ${color} transition-all`}>
+      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-[10px] font-black text-black">
+        {amount}
+      </div>
+      {active && <div className="absolute -inset-1 rounded-full border-2 border-yellow-400 animate-pulse"></div>}
+    </div>
+  );
+
   return (
-    <div className="mt-8 overflow-hidden rounded-3xl border-4 border-yellow-500 bg-slate-900 shadow-2xl">
+    <div className="w-full overflow-hidden rounded-[32px] border-4 border-yellow-500 bg-[#0d0d0f] shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
       {/* Casino Header */}
-      <div className="bg-gradient-to-r from-red-700 via-red-600 to-red-700 p-4 text-center">
-        <h2 className="text-2xl font-black italic tracking-tighter text-yellow-300 drop-shadow-md">
-          STELLAR CASINO ROYALE
+      <div className="bg-gradient-to-r from-red-800 via-red-600 to-red-800 p-5 text-center border-b-4 border-yellow-600">
+        <h2 className="text-3xl font-black italic tracking-tighter text-yellow-300 drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">
+          CASINO ROYALE
         </h2>
         {joinedRoom && (
-          <div className="mt-1 font-mono text-xs font-bold text-white opacity-80">
-            TABLE: {joinedRoom}
+          <div className="mt-1 inline-block px-3 py-0.5 rounded-full bg-black/40 border border-yellow-500/30 text-[10px] font-black text-yellow-500 uppercase tracking-widest">
+            PRIVATE TABLE: {joinedRoom}
           </div>
         )}
       </div>
 
-      <div className="p-6">
+      <div className="p-8">
         {gameState === 'LOBBY' && (
-          <div className="space-y-6 py-4 text-center">
-            <div className="flex justify-center gap-4 py-4">
+          <div className="space-y-8 text-center">
+            <div className="flex justify-center gap-6 py-4">
               <CasinoChip color="bg-blue-600" amount="1" />
               <CasinoChip color="bg-red-600" amount="5" />
               <CasinoChip color="bg-green-600" amount="10" />
             </div>
-            <p className="text-sm font-bold text-yellow-500 uppercase tracking-widest">High Stakes Tic Tac Toe</p>
-            <button
-              onClick={handleCreateGame}
-              className="w-full rounded-full bg-gradient-to-b from-yellow-400 to-yellow-600 py-4 font-black uppercase text-slate-900 shadow-[0_4px_0_rgb(161,98,7)] transition active:translate-y-1 active:shadow-none"
-            >
-              Start New Table
-            </button>
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-700"></div></div>
-              <div className="relative flex justify-center text-xs uppercase"><span className="bg-slate-900 px-2 text-slate-500 font-bold">OR JOIN TABLE</span></div>
-            </div>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                placeholder="Table ID"
-                value={roomId}
-                onChange={(e) => setRoomId(e.target.value)}
-                className="flex-1 rounded-full border-2 border-slate-700 bg-slate-800 px-4 py-2 font-bold text-white uppercase focus:border-yellow-500 focus:outline-none"
-              />
+            
+            <div className="space-y-4">
               <button
-                onClick={handleJoinGame}
-                className="rounded-full bg-slate-100 px-8 py-2 font-black uppercase text-slate-900 transition hover:bg-white"
+                onClick={handleCreateGame}
+                className="group relative w-full overflow-hidden rounded-2xl bg-gradient-to-b from-yellow-400 to-yellow-600 p-px shadow-lg transition-all hover:scale-[1.02] active:scale-[0.98]"
               >
-                Join
+                <div className="rounded-2xl bg-gradient-to-b from-yellow-400 to-yellow-600 px-8 py-4 font-black uppercase text-slate-900 shadow-[inset_0_2px_0_rgba(255,255,255,0.4)]">
+                  Create New Table
+                </div>
               </button>
+
+              <div className="relative flex items-center py-2">
+                <div className="flex-grow border-t border-slate-800"></div>
+                <span className="mx-4 text-[10px] font-black uppercase text-slate-600 tracking-[0.3em]">OR JOIN EXISTING</span>
+                <div className="flex-grow border-t border-slate-800"></div>
+              </div>
+
+              <div className="flex gap-3">
+                <input
+                  type="text"
+                  placeholder="ENTER TABLE ID"
+                  value={roomId}
+                  onChange={(e) => setRoomId(e.target.value)}
+                  className="flex-1 rounded-2xl border-2 border-slate-800 bg-black/40 px-6 py-4 font-black text-white uppercase placeholder:text-slate-700 focus:border-yellow-500 focus:outline-none transition-colors"
+                />
+                <button
+                  onClick={handleJoinGame}
+                  className="rounded-2xl bg-white px-8 py-4 font-black uppercase text-black hover:bg-yellow-400 transition-colors"
+                >
+                  Join
+                </button>
+              </div>
             </div>
           </div>
         )}
 
         {gameState === 'BETTING' && (
-          <div className="py-4 text-center">
-            <p className="mb-6 text-xl font-bold text-white">Select Your Buy-In</p>
-            <div className="mb-8 flex justify-center gap-6">
-              {[ '1', '5', '10' ].map((val) => (
+          <div className="py-4 text-center space-y-8">
+            <div className="space-y-2">
+              <h3 className="text-2xl font-black text-white uppercase tracking-tight italic">
+                {mySymbol === 'X' ? 'Set the Stakes' : 'Match the Stakes'}
+              </h3>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+                {mySymbol === 'X' ? 'Choose the buy-in for this table' : 'The host has set the buy-in'}
+              </p>
+            </div>
+
+            <div className="flex justify-center gap-8">
+              {['1', '5', '10'].map((val) => (
                 <button 
                   key={val}
-                  onClick={() => setBetAmount(val)}
-                  className={`group relative transition-transform hover:scale-110 ${betAmount === val ? 'scale-125' : 'opacity-50'}`}
+                  onClick={() => mySymbol === 'X' && setBetAmount(val)}
+                  disabled={mySymbol === 'O'}
+                  className={`relative transition-all duration-300 ${betAmount === val ? 'scale-110 opacity-100' : 'scale-90 opacity-40'} ${mySymbol === 'O' ? 'cursor-default' : 'hover:scale-105'}`}
                 >
-                  <CasinoChip color={val === '1' ? 'bg-blue-600' : val === '5' ? 'bg-red-600' : 'bg-green-600'} amount={val} />
-                  {betAmount === val && <div className="absolute -bottom-2 left-1/2 h-1 w-4 -translate-x-1/2 bg-yellow-400 blur-[2px]"></div>}
+                  <CasinoChip 
+                    color={val === '1' ? 'bg-blue-600' : val === '5' ? 'bg-red-600' : 'bg-green-600'} 
+                    amount={val} 
+                    active={betAmount === val}
+                  />
+                  {betAmount === val && (
+                    <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 text-[10px] font-black text-yellow-500 whitespace-nowrap">
+                      {val} XLM BET
+                    </div>
+                  )}
                 </button>
               ))}
             </div>
-            <p className="mb-4 text-xs font-bold text-slate-400">WAITING FOR PLAYER {mySymbol === 'X' ? 'O' : 'X'}</p>
-            <button
-              onClick={handlePlaceBet}
-              className="w-full rounded-full bg-emerald-600 py-4 font-black uppercase text-white shadow-[0_4px_0_rgb(5,150,105)] transition hover:bg-emerald-500 active:translate-y-1 active:shadow-none"
-            >
-              Place {betAmount} XLM Bet
-            </button>
-            {error && <p className="mt-4 text-sm font-bold text-red-500">⚠ {error}</p>}
+
+            <div className="pt-4">
+              <button
+                onClick={handlePlaceBet}
+                className="group relative w-full overflow-hidden rounded-2xl bg-emerald-600 p-px shadow-[0_10px_20px_-5px_rgba(5,150,105,0.4)] transition-all hover:scale-[1.02] active:scale-[0.98]"
+              >
+                <div className="rounded-2xl bg-emerald-600 px-8 py-5 font-black uppercase text-white shadow-[inset_0_2px_0_rgba(255,255,255,0.2)]">
+                  Place {betAmount} XLM Buy-In
+                </div>
+              </button>
+              {error && (
+                <div className="mt-4 rounded-xl border-2 border-red-500/20 bg-red-500/10 p-3 text-xs font-bold text-red-500 uppercase italic animate-shake">
+                  ⚠ {error}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
         {gameState === 'WAITING_FOR_BET' && (
-          <div className="py-12 text-center">
-            <div className="mx-auto mb-6 h-12 w-12 animate-spin rounded-full border-4 border-yellow-500 border-t-transparent shadow-[0_0_20px_rgba(234,179,8,0.5)]"></div>
-            <p className="font-black uppercase tracking-widest text-yellow-500 animate-pulse">Confirming Bet...</p>
+          <div className="py-16 text-center space-y-6">
+            <div className="relative mx-auto h-20 w-20">
+              <div className="absolute inset-0 animate-ping rounded-full bg-yellow-500/20"></div>
+              <div className="relative flex h-full w-full items-center justify-center rounded-full border-4 border-yellow-500 border-t-transparent animate-spin shadow-[0_0_30px_rgba(234,179,8,0.3)]">
+                 <span className="text-2xl animate-pulse">💎</span>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <p className="font-black uppercase tracking-[0.3em] text-yellow-500 animate-pulse">Verifying Transaction</p>
+              <p className="text-[10px] font-bold text-slate-500 uppercase italic">On-Chain Confirmation in Progress...</p>
+            </div>
           </div>
         )}
 
         {(gameState === 'PLAYING' || gameState === 'WON' || gameState === 'DRAW') && (
-          <div className="flex flex-col items-center">
-            <div className="mb-6 flex w-full items-center justify-between rounded-xl bg-slate-800 p-3 border border-slate-700">
-               <div className="flex items-center gap-2">
-                 <div className={`h-3 w-3 rounded-full ${mySymbol === 'X' ? 'bg-blue-500 shadow-[0_0_8px_blue]' : 'bg-red-500 shadow-[0_0_8px_red]'}`}></div>
-                 <span className="text-xs font-black text-white uppercase">Player {mySymbol}</span>
+          <div className="flex flex-col items-center space-y-8">
+            <div className="flex w-full items-center justify-between rounded-2xl bg-black/40 p-4 border border-white/5 shadow-inner">
+               <div className="flex items-center gap-3">
+                 <div className={`h-4 w-4 rounded-full ring-4 ${mySymbol === 'X' ? 'bg-blue-500 ring-blue-500/20 shadow-[0_0_15px_blue]' : 'bg-red-500 ring-red-500/20 shadow-[0_0_15px_red]'}`}></div>
+                 <div className="flex flex-col">
+                   <span className="text-[10px] font-black text-slate-500 uppercase">Your Mark</span>
+                   <span className="text-sm font-black text-white uppercase tracking-tighter">Player {mySymbol}</span>
+                 </div>
                </div>
-               <div className="text-xs font-black uppercase text-yellow-500">
-                {gameState === 'WON' ? "JACKPOT!" : 
-                 gameState === 'DRAW' ? "SPLIT POT" : 
-                 ((xIsNext && mySymbol === 'X') || (!xIsNext && mySymbol === 'O') ? "YOUR TURN" : "WAITING...")}
+               
+               <div className="text-right">
+                 <span className="text-[10px] font-black text-slate-500 uppercase block mb-0.5">Pot Total</span>
+                 <span className="text-lg font-black text-yellow-500 italic leading-none">{Number(betAmount) * 2} XLM</span>
                </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-3 rounded-2xl bg-slate-800 p-3 shadow-inner">
-              {board.map((square, i) => (
-                <button
-                  key={i}
-                  onClick={() => handleClick(i)}
-                  className={`flex h-20 w-20 items-center justify-center rounded-xl text-4xl font-black transition-all duration-75
-                    ${!square && gameState === 'PLAYING' ? 'bg-slate-700 hover:bg-slate-600 shadow-[inset_0_2px_4px_rgba(0,0,0,0.3)]' : 'bg-slate-900'}
-                    ${square === 'X' ? 'text-blue-400 drop-shadow-[0_0_8px_rgba(96,165,250,0.8)]' : 'text-red-400 drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]'}
-                  `}
-                  disabled={!!square || gameState !== 'PLAYING'}
-                >
-                  {square}
-                </button>
-              ))}
+            <div className="relative group">
+              <div className="absolute -inset-4 bg-gradient-to-r from-blue-500/10 to-red-500/10 rounded-3xl blur-2xl"></div>
+              <div className="relative grid grid-cols-3 gap-4 rounded-3xl bg-slate-900/50 p-4 shadow-2xl backdrop-blur-sm border border-white/5">
+                {board.map((square, i) => (
+                  <button
+                    key={i}
+                    onClick={() => handleClick(i)}
+                    className={`flex h-20 w-20 items-center justify-center rounded-2xl text-4xl font-black transition-all duration-100
+                      ${!square && gameState === 'PLAYING' ? 'bg-slate-800 hover:bg-slate-700 hover:scale-[1.05] active:scale-95 shadow-lg' : 'bg-black/40'}
+                      ${square === 'X' ? 'text-blue-500 drop-shadow-[0_0_12px_rgba(59,130,246,0.6)]' : 'text-red-500 drop-shadow-[0_0_12px_rgba(239,68,68,0.6)]'}
+                    `}
+                    disabled={!!square || gameState !== 'PLAYING'}
+                  >
+                    {square}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="text-sm font-black uppercase tracking-[0.2em] text-center">
+               {gameState === 'WON' ? (
+                 <span className="text-yellow-500 animate-bounce block">🎉 JACKPOT ACQUIRED! 🎉</span>
+               ) : gameState === 'DRAW' ? (
+                 <span className="text-slate-400 block">TABLE DRAW - SPLIT POT</span>
+               ) : (
+                 <span className="text-slate-500 block">
+                   {((xIsNext && mySymbol === 'X') || (!xIsNext && mySymbol === 'O')) 
+                    ? "👉 YOUR TURN TO BET" 
+                    : "⌛ WAITING FOR OPPONENT"}
+                 </span>
+               )}
             </div>
 
             {(gameState === 'WON' || gameState === 'DRAW') && (
-              <div className="mt-8 flex w-full flex-col gap-4">
+              <div className="w-full space-y-4 pt-4 border-t border-slate-800">
                 {gameState === 'WON' && winner === mySymbol && (
-                  <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-600 to-emerald-800 p-6 text-center shadow-xl border-2 border-emerald-400">
-                    <div className="absolute -right-4 -top-4 opacity-20"><CasinoChip color="bg-yellow-400" amount="$$" /></div>
-                    <p className="text-xl font-black italic text-white drop-shadow-lg">BIG WINNER!</p>
-                    <p className="mt-1 text-xs font-bold text-emerald-100 opacity-80 uppercase tracking-tighter">The {Number(betAmount)*2} XLM Pot is Yours</p>
-                    <button
-                      onClick={handleClaim}
-                      className="mt-4 w-full rounded-full bg-white py-3 text-sm font-black uppercase text-emerald-800 shadow-lg transition hover:scale-105 active:scale-95"
-                    >
-                      Collect Winnings
-                    </button>
-                  </div>
+                  <button
+                    onClick={handleClaim}
+                    className="group relative w-full overflow-hidden rounded-2xl bg-gradient-to-r from-emerald-500 to-emerald-700 p-px shadow-2xl transition-all hover:scale-[1.02] active:scale-[0.98]"
+                  >
+                    <div className="rounded-2xl bg-gradient-to-r from-emerald-500 to-emerald-700 px-8 py-5 font-black uppercase text-white shadow-[inset_0_2px_0_rgba(255,255,255,0.2)]">
+                      Collect {Number(betAmount) * 2} XLM Winnings
+                    </div>
+                  </button>
                 )}
                 
                 <button
                   onClick={() => window.location.reload()}
-                  className="rounded-full border-2 border-slate-700 py-3 text-xs font-black uppercase text-slate-400 hover:bg-slate-800 transition-colors"
+                  className="w-full rounded-2xl border-2 border-slate-800 py-4 text-xs font-black uppercase text-slate-500 transition-colors hover:bg-slate-900 hover:text-white"
                 >
-                  Leave Table
+                  Return to Lobby
                 </button>
               </div>
             )}
@@ -289,9 +363,20 @@ export default function TicTacToe({ publicKey }: { publicKey: string }) {
         )}
       </div>
       
-      {/* Footer Decoration */}
-      <div className="bg-slate-800 p-2 text-center border-t border-slate-700">
-        <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Provably Fair • Powered by Stellar Testnet</p>
+      {/* Security Info */}
+      <div className="bg-black/60 px-8 py-3 text-center border-t border-slate-800 flex justify-center gap-6 items-center">
+        <div className="flex items-center gap-1.5">
+          <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_5px_emerald]"></div>
+          <span className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">Testnet Active</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="h-1.5 w-1.5 rounded-full bg-blue-500 shadow-[0_0_5px_blue]"></div>
+          <span className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">Ably Sync Secure</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="h-1.5 w-1.5 rounded-full bg-yellow-500 shadow-[0_0_5px_yellow]"></div>
+          <span className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">Pot Verified</span>
+        </div>
       </div>
     </div>
   );
