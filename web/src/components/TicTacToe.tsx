@@ -210,12 +210,27 @@ export default function TicTacToe({ publicKey }: { publicKey: string }) {
           )}
 
           {(gameState === 'WON' || gameState === 'DRAW') && (
-            <button
-              onClick={() => window.location.reload()}
-              className="mt-6 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium hover:bg-gray-50"
-            >
-              Back to Lobby
-            </button>
+            <div className="mt-6 flex flex-col gap-3 w-full">
+              {gameState === 'WON' && winner === mySymbol && (
+                <div className="rounded-lg bg-emerald-50 p-4 border border-emerald-200 text-center">
+                  <p className="text-emerald-800 font-bold">You Won the Pot!</p>
+                  <p className="text-xs text-emerald-600 mb-3">2 XLM is waiting for you.</p>
+                  <button
+                    onClick={() => alert('In a production app, a Smart Contract or Backend would now automatically send 2 XLM to your address: ' + publicKey)}
+                    className="w-full rounded-lg bg-emerald-600 py-2 text-sm font-bold text-white hover:bg-emerald-700 transition"
+                  >
+                    Claim 2 XLM Winnings
+                  </button>
+                </div>
+              )}
+              
+              <button
+                onClick={() => window.location.reload()}
+                className="rounded-lg border border-gray-300 py-2 text-sm font-medium hover:bg-gray-50 text-gray-700"
+              >
+                Back to Lobby
+              </button>
+            </div>
           )}
         </div>
       )}
