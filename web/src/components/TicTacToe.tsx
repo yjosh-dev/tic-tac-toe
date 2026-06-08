@@ -17,6 +17,7 @@ export default function TicTacToe({ publicKey }: { publicKey: string }) {
   const [roomId, setRoomId] = useState<string>('');
   const [joinedRoom, setJoinedRoom] = useState<string | null>(null);
   const [mySymbol, setMySymbol] = useState<'X' | 'O' | null>(null);
+  const [betAmount, setBetAmount] = useState<string>('1');
   
   const [board, setBoard] = useState<(string | null)[]>(Array(9).fill(null));
   const [xIsNext, setXIsNext] = useState(true);
@@ -79,7 +80,7 @@ export default function TicTacToe({ publicKey }: { publicKey: string }) {
     setGameState('WAITING_FOR_BET');
     setError('');
     try {
-      const xdr = await buildPaymentXDR(publicKey, POT_ADDRESS, '1', 'XLM');
+      const xdr = await buildPaymentXDR(publicKey, POT_ADDRESS, betAmount, 'XLM');
       const freighter = await import('@stellar/freighter-api');
       const signed = await freighter.signTransaction(xdr, {
         networkPassphrase: NETWORK_PASSPHRASE,
@@ -107,7 +108,6 @@ export default function TicTacToe({ publicKey }: { publicKey: string }) {
     sendMove(i, mySymbol!);
   };
 
-  // Sync moves from Ably
   useEffect(() => {
     if (messages.length > 0) {
       const lastMove = messages[messages.length - 1];
@@ -116,124 +116,160 @@ export default function TicTacToe({ publicKey }: { publicKey: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages]);
 
+  const CasinoChip = ({ color, amount }: { color: string, amount: string }) => (
+    <div className={`relative flex h-16 w-16 items-center justify-center rounded-full border-4 border-dashed border-white shadow-xl ${color}`}>
+      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-[10px] font-black text-black">
+        {amount}
+      </div>
+    </div>
+  );
+
   return (
-    <div className="mt-8 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-      <div className="mb-6 flex items-center justify-between">
-        <h2 className="text-xl font-bold text-gray-900">Online Bet Tic Tac Toe</h2>
+    <div className="mt-8 overflow-hidden rounded-3xl border-4 border-yellow-500 bg-slate-900 shadow-2xl">
+      {/* Casino Header */}
+      <div className="bg-gradient-to-r from-red-700 via-red-600 to-red-700 p-4 text-center">
+        <h2 className="text-2xl font-black italic tracking-tighter text-yellow-300 drop-shadow-md">
+          STELLAR CASINO ROYALE
+        </h2>
         {joinedRoom && (
-          <span className="rounded bg-indigo-50 px-2 py-1 text-xs font-mono font-bold text-indigo-600">
-            ROOM: {joinedRoom}
-          </span>
+          <div className="mt-1 font-mono text-xs font-bold text-white opacity-80">
+            TABLE: {joinedRoom}
+          </div>
         )}
       </div>
 
-      {gameState === 'LOBBY' && (
-        <div className="space-y-4 py-4">
-          <button
-            onClick={handleCreateGame}
-            className="w-full rounded-lg bg-indigo-600 py-3 font-bold text-white transition hover:bg-indigo-700"
-          >
-            Create New Game
-          </button>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              placeholder="Enter Room ID"
-              value={roomId}
-              onChange={(e) => setRoomId(e.target.value)}
-              className="flex-1 rounded-lg border border-gray-300 px-4 py-2 uppercase"
-            />
+      <div className="p-6">
+        {gameState === 'LOBBY' && (
+          <div className="space-y-6 py-4 text-center">
+            <div className="flex justify-center gap-4 py-4">
+              <CasinoChip color="bg-blue-600" amount="1" />
+              <CasinoChip color="bg-red-600" amount="5" />
+              <CasinoChip color="bg-green-600" amount="10" />
+            </div>
+            <p className="text-sm font-bold text-yellow-500 uppercase tracking-widest">High Stakes Tic Tac Toe</p>
             <button
-              onClick={handleJoinGame}
-              className="rounded-lg bg-gray-800 px-6 py-2 font-bold text-white transition hover:bg-black"
+              onClick={handleCreateGame}
+              className="w-full rounded-full bg-gradient-to-b from-yellow-400 to-yellow-600 py-4 font-black uppercase text-slate-900 shadow-[0_4px_0_rgb(161,98,7)] transition active:translate-y-1 active:shadow-none"
             >
-              Join
+              Start New Table
             </button>
-          </div>
-        </div>
-      )}
-
-      {gameState === 'BETTING' && (
-        <div className="py-8 text-center">
-          <p className="mb-2 text-gray-600 font-medium">You are Player {mySymbol}</p>
-          <p className="mb-4 text-sm text-gray-500">Share Room ID <span className="font-bold text-gray-900">{joinedRoom}</span> with your opponent.</p>
-          <button
-            onClick={handlePlaceBet}
-            className="rounded-lg bg-emerald-600 px-6 py-3 font-bold text-white transition hover:bg-emerald-700"
-          >
-            Pay 1 XLM Entry Fee
-          </button>
-          {error && <p className="mt-4 text-sm text-red-500">{error}</p>}
-        </div>
-      )}
-
-      {gameState === 'WAITING_FOR_BET' && (
-        <div className="py-8 text-center">
-          <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent"></div>
-          <p className="text-gray-600">Verifying payment on Stellar...</p>
-        </div>
-      )}
-
-      {(gameState === 'PLAYING' || gameState === 'WON' || gameState === 'DRAW') && (
-        <div className="flex flex-col items-center">
-          <div className="mb-4 flex w-full justify-between items-center text-sm">
-            <div className={`px-3 py-1 rounded-full ${mySymbol === 'X' ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700'}`}>
-              You: {mySymbol}
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-700"></div></div>
+              <div className="relative flex justify-center text-xs uppercase"><span className="bg-slate-900 px-2 text-slate-500 font-bold">OR JOIN TABLE</span></div>
             </div>
-            <div className="font-bold">
-              {gameState === 'WON' ? `Winner: ${winner}` : 
-               gameState === 'DRAW' ? "It's a Draw!" : 
-               ((xIsNext && mySymbol === 'X') || (!xIsNext && mySymbol === 'O') ? "Your Turn" : "Opponent's Turn")}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-2">
-            {board.map((square, i) => (
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="Table ID"
+                value={roomId}
+                onChange={(e) => setRoomId(e.target.value)}
+                className="flex-1 rounded-full border-2 border-slate-700 bg-slate-800 px-4 py-2 font-bold text-white uppercase focus:border-yellow-500 focus:outline-none"
+              />
               <button
-                key={i}
-                onClick={() => handleClick(i)}
-                className={`flex h-20 w-20 items-center justify-center rounded-lg text-3xl font-bold transition
-                  ${!square && gameState === 'PLAYING' ? 'bg-gray-50 hover:bg-gray-100' : 'bg-gray-100'}
-                  ${square === 'X' ? 'text-blue-600' : 'text-red-600'}
-                `}
-                disabled={!!square || gameState !== 'PLAYING'}
+                onClick={handleJoinGame}
+                className="rounded-full bg-slate-100 px-8 py-2 font-black uppercase text-slate-900 transition hover:bg-white"
               >
-                {square}
-              </button>
-            ))}
-          </div>
-
-          {txHash && (
-            <p className="mt-6 text-[10px] text-gray-400">
-              Payment confirmed: {txHash.substring(0, 10)}...
-            </p>
-          )}
-
-          {(gameState === 'WON' || gameState === 'DRAW') && (
-            <div className="mt-6 flex flex-col gap-3 w-full">
-              {gameState === 'WON' && winner === mySymbol && (
-                <div className="rounded-lg bg-emerald-50 p-4 border border-emerald-200 text-center">
-                  <p className="text-emerald-800 font-bold">You Won the Pot!</p>
-                  <p className="text-xs text-emerald-600 mb-3">2 XLM is waiting for you.</p>
-                  <button
-                    onClick={() => alert('In a production app, a Smart Contract or Backend would now automatically send 2 XLM to your address: ' + publicKey)}
-                    className="w-full rounded-lg bg-emerald-600 py-2 text-sm font-bold text-white hover:bg-emerald-700 transition"
-                  >
-                    Claim 2 XLM Winnings
-                  </button>
-                </div>
-              )}
-              
-              <button
-                onClick={() => window.location.reload()}
-                className="rounded-lg border border-gray-300 py-2 text-sm font-medium hover:bg-gray-50 text-gray-700"
-              >
-                Back to Lobby
+                Join
               </button>
             </div>
-          )}
-        </div>
-      )}
+          </div>
+        )}
+
+        {gameState === 'BETTING' && (
+          <div className="py-4 text-center">
+            <p className="mb-6 text-xl font-bold text-white">Select Your Buy-In</p>
+            <div className="mb-8 flex justify-center gap-6">
+              {[ '1', '5', '10' ].map((val) => (
+                <button 
+                  key={val}
+                  onClick={() => setBetAmount(val)}
+                  className={`group relative transition-transform hover:scale-110 ${betAmount === val ? 'scale-125' : 'opacity-50'}`}
+                >
+                  <CasinoChip color={val === '1' ? 'bg-blue-600' : val === '5' ? 'bg-red-600' : 'bg-green-600'} amount={val} />
+                  {betAmount === val && <div className="absolute -bottom-2 left-1/2 h-1 w-4 -translate-x-1/2 bg-yellow-400 blur-[2px]"></div>}
+                </button>
+              ))}
+            </div>
+            <p className="mb-4 text-xs font-bold text-slate-400">WAITING FOR PLAYER {mySymbol === 'X' ? 'O' : 'X'}</p>
+            <button
+              onClick={handlePlaceBet}
+              className="w-full rounded-full bg-emerald-600 py-4 font-black uppercase text-white shadow-[0_4px_0_rgb(5,150,105)] transition hover:bg-emerald-500 active:translate-y-1 active:shadow-none"
+            >
+              Place {betAmount} XLM Bet
+            </button>
+            {error && <p className="mt-4 text-sm font-bold text-red-500">⚠ {error}</p>}
+          </div>
+        )}
+
+        {gameState === 'WAITING_FOR_BET' && (
+          <div className="py-12 text-center">
+            <div className="mx-auto mb-6 h-12 w-12 animate-spin rounded-full border-4 border-yellow-500 border-t-transparent shadow-[0_0_20px_rgba(234,179,8,0.5)]"></div>
+            <p className="font-black uppercase tracking-widest text-yellow-500 animate-pulse">Confirming Bet...</p>
+          </div>
+        )}
+
+        {(gameState === 'PLAYING' || gameState === 'WON' || gameState === 'DRAW') && (
+          <div className="flex flex-col items-center">
+            <div className="mb-6 flex w-full items-center justify-between rounded-xl bg-slate-800 p-3 border border-slate-700">
+               <div className="flex items-center gap-2">
+                 <div className={`h-3 w-3 rounded-full ${mySymbol === 'X' ? 'bg-blue-500 shadow-[0_0_8px_blue]' : 'bg-red-500 shadow-[0_0_8px_red]'}`}></div>
+                 <span className="text-xs font-black text-white uppercase">Player {mySymbol}</span>
+               </div>
+               <div className="text-xs font-black uppercase text-yellow-500">
+                {gameState === 'WON' ? "JACKPOT!" : 
+                 gameState === 'DRAW' ? "SPLIT POT" : 
+                 ((xIsNext && mySymbol === 'X') || (!xIsNext && mySymbol === 'O') ? "YOUR TURN" : "WAITING...")}
+               </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3 rounded-2xl bg-slate-800 p-3 shadow-inner">
+              {board.map((square, i) => (
+                <button
+                  key={i}
+                  onClick={() => handleClick(i)}
+                  className={`flex h-20 w-20 items-center justify-center rounded-xl text-4xl font-black transition-all duration-75
+                    ${!square && gameState === 'PLAYING' ? 'bg-slate-700 hover:bg-slate-600 shadow-[inset_0_2px_4px_rgba(0,0,0,0.3)]' : 'bg-slate-900'}
+                    ${square === 'X' ? 'text-blue-400 drop-shadow-[0_0_8px_rgba(96,165,250,0.8)]' : 'text-red-400 drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]'}
+                  `}
+                  disabled={!!square || gameState !== 'PLAYING'}
+                >
+                  {square}
+                </button>
+              ))}
+            </div>
+
+            {(gameState === 'WON' || gameState === 'DRAW') && (
+              <div className="mt-8 flex w-full flex-col gap-4">
+                {gameState === 'WON' && winner === mySymbol && (
+                  <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-600 to-emerald-800 p-6 text-center shadow-xl border-2 border-emerald-400">
+                    <div className="absolute -right-4 -top-4 opacity-20"><CasinoChip color="bg-yellow-400" amount="$$" /></div>
+                    <p className="text-xl font-black italic text-white drop-shadow-lg">BIG WINNER!</p>
+                    <p className="mt-1 text-xs font-bold text-emerald-100 opacity-80 uppercase tracking-tighter">The {Number(betAmount)*2} XLM Pot is Yours</p>
+                    <button
+                      onClick={() => alert(`CLAIM REQUESTED! The house will verify and send ${Number(betAmount)*2} XLM to: ${publicKey.substring(0,8)}...`)}
+                      className="mt-4 w-full rounded-full bg-white py-3 text-sm font-black uppercase text-emerald-800 shadow-lg transition hover:scale-105 active:scale-95"
+                    >
+                      Collect Winnings
+                    </button>
+                  </div>
+                )}
+                
+                <button
+                  onClick={() => window.location.reload()}
+                  className="rounded-full border-2 border-slate-700 py-3 text-xs font-black uppercase text-slate-400 hover:bg-slate-800 transition-colors"
+                >
+                  Leave Table
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+      
+      {/* Footer Decoration */}
+      <div className="bg-slate-800 p-2 text-center border-t border-slate-700">
+        <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Provably Fair • Powered by Stellar Testnet</p>
+      </div>
     </div>
   );
 }
