@@ -15,15 +15,46 @@ export default function Home() {
   const [refreshKey, setRefreshKey] = useState(0);
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
 
+  // Generate random coins for the background rain
+  const coins = Array.from({ length: 40 }).map((_, i) => ({
+    id: i,
+    left: `${Math.random() * 100}%`,
+    duration: `${5 + Math.random() * 10}s`,
+    delay: `${Math.random() * -15}s`,
+    size: `${10 + Math.random() * 30}px`,
+    opacity: 0.1 + Math.random() * 0.3,
+    emoji: ['🪙', '💎', '💰', '✨'][Math.floor(Math.random() * 4)]
+  }));
+
   return (
     <main className="min-h-screen w-full bg-[#1a0505] text-slate-100 overflow-x-hidden selection:bg-yellow-500 selection:text-black font-sans">
       
       {/* 🎰 THEMED BACKGROUND 🎰 */}
-      <div className="fixed inset-0 pointer-events-none z-0">
+      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
         {/* Red Felt Texture */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_#4a0404_0%,_#1a0505_100%)]"></div>
         <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/pinstriped-suit.png')]"></div>
         
+        {/* 🪙 INFINITE COIN RAIN 🪙 */}
+        <div className="absolute inset-0">
+          {coins.map((coin) => (
+            <div
+              key={coin.id}
+              className="absolute animate-coin-fall text-yellow-500/30 select-none"
+              style={{
+                left: coin.left,
+                animationDuration: coin.duration,
+                animationDelay: coin.delay,
+                fontSize: coin.size,
+                opacity: coin.opacity,
+                filter: 'blur(1px)',
+              }}
+            >
+              {coin.emoji}
+            </div>
+          ))}
+        </div>
+
         {/* Floating Neon Card Suits */}
         <div className="absolute top-20 left-10 text-red-500/20 text-9xl rotate-12 animate-pulse">♠</div>
         <div className="absolute bottom-40 right-10 text-red-600/20 text-9xl -rotate-12 animate-pulse delay-700">♥</div>

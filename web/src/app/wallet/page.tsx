@@ -3,14 +3,16 @@
 import { useWallet } from '@/hooks/useWallet';
 import ConnectWallet from '@/components/ConnectWallet';
 import TicTacToe from '@/components/TicTacToe';
+import CoinBackground from '@/components/CoinBackground';
 
 export default function WalletPage() {
   const wallet = useWallet();
   const { publicKey, connecting } = wallet;
 
   return (
-    <main className="min-h-screen w-full bg-gray-50 p-8">
-      <div className="mx-auto max-w-lg">
+    <main className="relative min-h-screen w-full bg-gray-50/50 p-8 overflow-hidden">
+      <CoinBackground />
+      <div className="relative z-10 mx-auto max-w-lg">
         <header className="mb-8 flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Wallet Page</h1>
