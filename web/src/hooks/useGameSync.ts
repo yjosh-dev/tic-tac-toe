@@ -3,8 +3,8 @@
 import { useEffect, useState, useRef } from 'react';
 import * as Ably from 'ably';
 
-// !!! Ably JWT Token provided by user
-const ABLY_TOKEN = 'eyJ0eXAiOiJKV1QiLCJ2ZXJzaW9uIjoxLCJhbGciOiJIUzI1NiJ9.eyJqdGkiOiI5Yjg2YjFjNy1jYmVlLTRiYTYtYjNmNy1lZDhkYjVlY2I5OWEiLCJpc3MiOiJhYmx5LmNvbSIsImlhdCI6MTc4MDg5ODYwNywic3ViIjoxMDI1MjYsImV4cCI6MTc4MzQ5MDYwN30.GHv0CnMRit7BO6GbdQsztGITv5h3BZAoDME-0GiJils';
+// Full Ably Root Key provided by user
+const ABLY_KEY = 'nQ2DYw.oEeHoA:HYWuHtZeHYE7KHB_tMYtbRdQWN0zsUrB_Mmzdn7pWrc';
 
 interface GameMove {
   index: number;
@@ -19,14 +19,25 @@ export function useGameSync(roomId: string | null) {
   useEffect(() => {
     if (!roomId) return;
 
-    // Initialize Ably using Token (JWT)
-    const ably = new Ably.Realtime({ token: ABLY_TOKEN });
+    // Initialize Ably using API Key
+    console.log('Ably: Initializing with roomId:', roomId);
+    const ably = new Ably.Realtime({ key: ABLY_KEY });
     ablyRef.current = ably;
+
+    ably.connection.on('connected', () => {
+      console.log('Ably: Connected to server');
+    });
+
+    ably.connection.on('failed', (err) => {
+      console.error('Ably: Connection failed:', err);
+    });
+
     const channel = ably.channels.get(`tic-tac-toe-${roomId}`);
     channelRef.current = channel;
 
     // Subscribe to messages
     channel.subscribe('move', (message) => {
+      console.log('Ably: Received move:', message.data);
       setMessages((prev) => [...prev, message.data]);
     });
 
@@ -38,6 +49,7 @@ export function useGameSync(roomId: string | null) {
 
   const sendMove = (index: number, player: 'X' | 'O') => {
     if (channelRef.current) {
+      console.log('Ably: Sending move:', { index, player });
       channelRef.current.publish('move', { index, player });
     }
   };

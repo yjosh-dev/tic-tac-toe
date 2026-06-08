@@ -69,7 +69,8 @@ export default function TicTacToe({ publicKey }: { publicKey: string }) {
 
   const handleJoinGame = () => {
     if (!roomId) return;
-    setJoinedRoom(roomId.toUpperCase());
+    const cleanId = roomId.trim().toUpperCase();
+    setJoinedRoom(cleanId);
     setMySymbol('O');
     setGameState('BETTING');
   };
