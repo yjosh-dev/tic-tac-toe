@@ -124,6 +124,29 @@ export default function TicTacToe({ publicKey }: { publicKey: string }) {
     </div>
   );
 
+  const handleClaim = async () => {
+    setError('');
+    setGameState('WAITING_FOR_BET'); // Reuse loading state
+    try {
+      const res = await fetch('/api/payout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          winnerAddress: publicKey,
+          amount: Number(betAmount) * 2
+        })
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      
+      alert(`JACKPOT PAID! Hash: ${data.hash}`);
+      window.location.reload();
+    } catch (e: any) {
+      setError(e.message || 'Payout failed');
+      setGameState('WON');
+    }
+  };
+
   return (
     <div className="mt-8 overflow-hidden rounded-3xl border-4 border-yellow-500 bg-slate-900 shadow-2xl">
       {/* Casino Header */}
@@ -246,7 +269,7 @@ export default function TicTacToe({ publicKey }: { publicKey: string }) {
                     <p className="text-xl font-black italic text-white drop-shadow-lg">BIG WINNER!</p>
                     <p className="mt-1 text-xs font-bold text-emerald-100 opacity-80 uppercase tracking-tighter">The {Number(betAmount)*2} XLM Pot is Yours</p>
                     <button
-                      onClick={() => alert(`CLAIM REQUESTED! The house will verify and send ${Number(betAmount)*2} XLM to: ${publicKey.substring(0,8)}...`)}
+                      onClick={handleClaim}
                       className="mt-4 w-full rounded-full bg-white py-3 text-sm font-black uppercase text-emerald-800 shadow-lg transition hover:scale-105 active:scale-95"
                     >
                       Collect Winnings
