@@ -15,6 +15,7 @@ export default function Home() {
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
 
   return (
+
     <main className="min-h-screen w-full bg-gray-50">
       <div className="mx-auto max-w-lg px-4 py-12">
         <header className="mb-8 flex items-start justify-between gap-4">
